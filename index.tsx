@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { ClipboardCopy, Download, FileText, CheckCircle2, AlertCircle, Search, Plus, Trash2, Settings, Copy, Mail } from 'lucide-react';
+import './index.css';
 
 type FieldType = 'text' | 'emailList';
 
@@ -893,3 +895,9 @@ export default function App() {
     </div>
   );
 }
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);
