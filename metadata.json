@@ -1,0 +1,5 @@
+{
+  "name": "ServiceNow Email Extractor",
+  "description": "An offline-capable tool to extract Technical Contact, Business Contact, and Email lists from ServiceNow pages.",
+  "requestFramePermissions": []
+}
