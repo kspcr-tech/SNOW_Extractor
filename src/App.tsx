@@ -26,6 +26,9 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>ServiceNow Extractor</title>
+    <!-- Babel Standalone for static hosting -->
+    <!-- Pinned to version 7.24.7 to prevent breaking changes in latest -->
+    <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; color: #1f2937; padding: 2rem; margin: 0; }
         .container { max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 1.5rem; }
