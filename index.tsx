@@ -19,6 +19,7 @@ const DEFAULT_FIELDS: FieldDef[] = [
   { id: 'f5', name: 'Catalog Task', type: 'text', lineOffset: 1 },
   { id: 'f6', name: 'ServiceNow Queue', type: 'text', lineOffset: 4 },
   { id: 'f7', name: 'Gear ID', type: 'text', lineOffset: 1 },
+  { id: 'f8', name: 'Common Name( Fully Qualified Domain Name)', type: 'text', lineOffset: 4 },
 ];
 
 const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
@@ -62,6 +63,12 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
         .btn-copy { background-color: #f3f4f6; color: #4f46e5; border: 1px solid #e5e7eb; padding: 0.25rem 0.75rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
         .btn-copy:hover { background-color: #e0e7ff; }
         .result-value { font-family: monospace; color: #111827; word-break: break-all; font-size: 1rem; background: #f9fafb; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 0.375rem; min-height: 1.5rem; }
+        #email-body-val a { color: #2563eb; text-decoration: underline; cursor: pointer; }
+        #email-body-val a:hover { color: #1d4ed8; }
+        #email-body-val ul { padding-left: 1.5rem; margin: 0.5rem 0; list-style-type: disc; }
+        #email-body-val ol { padding-left: 1.5rem; margin: 0.5rem 0; list-style-type: decimal; }
+        #email-body-val strong, #email-body-val b { font-weight: bold; }
+        #email-body-val em, #email-body-val i { font-style: italic; }
         
         .section-title { font-size: 1.125rem; font-weight: 600; margin-top: 0; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; }
     </style>
@@ -119,7 +126,23 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
                 </div>
                 <textarea id="email-output-input" placeholder="Paste email IDs here to check against Team DL..." style="height: 100px;" oninput="updateEmailOutput()"></textarea>
             </div>
-            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <div style="flex: 1; background: #f9fafb; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span class="result-label">To</span>
+                        <button class="btn-copy" onclick="copyEmailTo(this)">Copy</button>
+                    </div>
+                    <div id="email-to-val" class="result-value" style="background: transparent; border: none; padding: 0;">Need confirmation</div>
+                </div>
+                <div style="flex: 1; background: #f9fafb; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span class="result-label">Cc</span>
+                        <button class="btn-copy" onclick="copyEmailCc(this)">Copy</button>
+                    </div>
+                    <div id="email-cc-val" class="result-value" style="background: transparent; border: none; padding: 0;">Need confirmation</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; flex-direction: column;">
                 <div style="flex: 1; background: #f9fafb; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                         <span class="result-label">Subject</span>
@@ -129,7 +152,7 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
                 </div>
                 <div style="flex: 1; background: #f9fafb; padding: 1rem; border: 1px solid #e5e7eb; border-radius: 0.375rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <span class="result-label">Email Body</span>
+                        <span class="result-label">Email Body (Editable)</span>
                         <button class="btn-copy" onclick="copyEmailBody(this)">Copy</button>
                     </div>
                     <div id="email-body-val" class="result-value" style="background: transparent; border: none; padding: 0;">Need confirmation</div>
@@ -146,7 +169,8 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
             { id: 'f4', name: 'Business Contact Email', type: 'emailList', lineOffset: 1 },
             { id: 'f5', name: 'Catalog Task', type: 'text', lineOffset: 1 },
             { id: 'f6', name: 'ServiceNow Queue', type: 'text', lineOffset: 4 },
-            { id: 'f7', name: 'Gear ID', type: 'text', lineOffset: 1 }
+            { id: 'f7', name: 'Gear ID', type: 'text', lineOffset: 1 },
+            { id: 'f8', name: 'Common Name( Fully Qualified Domain Name)', type: 'text', lineOffset: 4 }
         ];
         var extractedResults = {};
 
@@ -306,16 +330,37 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
             updateEmailOutput();
         }
 
+        function formatEmailList(emailsStr) {
+            var emails = emailsStr.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+            var uniqueEmails = [];
+            for(var i=0; i<emails.length; i++) {
+                if(uniqueEmails.indexOf(emails[i]) === -1) uniqueEmails.push(emails[i]);
+            }
+            if (uniqueEmails.length === 0) return "";
+            if (uniqueEmails.length === 1) return uniqueEmails[0];
+            if (uniqueEmails.length === 2) return uniqueEmails.join(" and ");
+            var last = uniqueEmails.pop();
+            return uniqueEmails.join(", ") + " and " + last;
+        }
+
         function updateEmailOutput() {
             var isInvalid = document.getElementById('invalid-team-dl-checkbox').checked;
             var inputEl = document.getElementById('email-output-input');
+            var bodyEl = document.getElementById('email-body-val');
+            var toEl = document.getElementById('email-to-val');
+            var ccEl = document.getElementById('email-cc-val');
+            var subjectEl = document.getElementById('email-subject-val');
             
             if (isInvalid) {
                 inputEl.disabled = true;
                 inputEl.style.opacity = '0.5';
                 inputEl.style.cursor = 'not-allowed';
-                document.getElementById('email-subject-val').innerText = "not a valid Team DL";
-                document.getElementById('email-body-val').innerText = "not a valid Team DL";
+                toEl.innerText = "not a valid Team DL";
+                ccEl.innerText = "not a valid Team DL";
+                subjectEl.innerText = "not a valid Team DL";
+                bodyEl.innerHTML = "not a valid Team DL";
+                bodyEl.contentEditable = "false";
+                bodyEl.style.backgroundColor = "transparent";
                 return;
             }
             
@@ -325,16 +370,57 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
 
             var input = inputEl.value.toLowerCase();
             var teamDlField = fields.find(function(f) { return f.name === 'Team DL/Group email address'; });
-            var extractedTeamDl = "";
-            if (teamDlField && extractedResults[teamDlField.id] && extractedResults[teamDlField.id] !== "Not found") {
-                extractedTeamDl = extractedResults[teamDlField.id].toLowerCase();
+            var techContactField = fields.find(function(f) { return f.name === 'Technical Contact Email'; });
+            var catalogTaskField = fields.find(function(f) { return f.name === 'Catalog Task'; });
+            var commonNameField = fields.find(function(f) { return f.name === 'Common Name( Fully Qualified Domain Name)'; });
+            
+            var extractedTeamDl = (teamDlField && extractedResults[teamDlField.id] && extractedResults[teamDlField.id] !== "Not found") ? extractedResults[teamDlField.id] : "";
+            var techContact = (techContactField && extractedResults[techContactField.id] && extractedResults[techContactField.id] !== "Not found") ? extractedResults[techContactField.id] : "";
+            var catalogTask = (catalogTaskField && extractedResults[catalogTaskField.id] && extractedResults[catalogTaskField.id] !== "Not found") ? extractedResults[catalogTaskField.id] : "";
+            var commonName = (commonNameField && extractedResults[commonNameField.id] && extractedResults[commonNameField.id] !== "Not found") ? extractedResults[commonNameField.id] : "";
+            
+            var hasTeamDl = extractedTeamDl && input.indexOf(extractedTeamDl.toLowerCase()) !== -1;
+            
+            toEl.innerText = techContact || "Need confirmation";
+            
+            var teamDlEmails = extractedTeamDl.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+            var inputEmails = inputEl.value.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+            
+            var allCc = hasTeamDl ? teamDlEmails.slice() : teamDlEmails.concat(inputEmails);
+            allCc.push("corebridge_pki@corebridgefinancial.com");
+            
+            var uniqueCc = [];
+            for(var i=0; i<allCc.length; i++) {
+                if(uniqueCc.indexOf(allCc[i]) === -1) uniqueCc.push(allCc[i]);
             }
             
-            var hasTeamDl = extractedTeamDl && input.indexOf(extractedTeamDl) !== -1;
-            var text = hasTeamDl ? "all good" : "Need confirmation";
+            var ccString = uniqueCc.join("; ");
+            ccEl.innerText = ccString ? ccString + ":" : "Need confirmation";
             
-            document.getElementById('email-subject-val').innerText = text;
-            document.getElementById('email-body-val').innerText = text;
+            var DEFAULT_EMAIL_BODY = '<p>Hi&nbsp;<br>Good Day!</p><p>Thank you for raising the request with us. <strong>Please find attached TLS certificates requested in the subjected tickets.</strong></p><p>You may have noticed that your certificate request was fulfilled by our Internal Certificate Authority (CA). Since your domain(s) is located 100% inside the Corebridge enclave, a Corebridge CA internal certificate is appropriate.</p><p><strong><u>Please note:</u></strong><br>BEFORE INSTALLING THIS CERTIFICATE, the first thing you should do is to <strong><u>check in your trusted Root and Intermediate stores that the Corebridge Root and Corebridge Issuing CA 1 certs are present</u></strong>. The Intermediate and Root certificates are part of the standard build of all Corebridge workstations, desktops, laptops, and servers. However, third-party systems will probably require "custom" installation of the Corebridge Internal Root and Intermediate.</p><p>Please use our <strong>NEW SERVICENOW CATALOG</strong> going forward, using this link: <a href="https://test.crbg.com">SSL TLS PKI CERTIFICATE REQUEST | ServiceNow</a>. If the link doesn\\'t work, navigate to <a href="https://corebridge.service-now.com/sp">https://corebridge.service-now.com/sp</a>&nbsp;and search for "SSL TLS PKI CERTIFICATE REQUEST" in the service catalog.</p><p>For additional details related to SSL/TLS Certificates, review the PKI Confluence: <a href="https://rest.crbg.com">Corebridge PKI-SSL/TLS Certificates - Confluence</a></p><p>Thank you.<br>Regards,</p>';
+            
+            var formattedInputEmails = formatEmailList(inputEl.value);
+            var NOT_MATCHING_BODY = '<p>Hello&nbsp;<br>Good Day!</p><p>Thank you for raising the request with us. I am from PKI team.</p><p>Upon checking the existing certificate- <strong>' + commonName + '</strong> for the subjected request, we can see that this certificate belongs to ' + formattedInputEmails + '</p><p>The email contacts mentioned in this renewal request is not matching with existing ownership. Please confirm regarding the updated ownership of the mentioned domein so that we can proceed with the renewal request. Additionally, I have added the existing certificate owners to this email for confirmation.</p><p>Thank you.<br>Regards,</p>';
+
+            if (hasTeamDl) {
+                subjectEl.innerText = catalogTask + " | Delivery of SSL certificate for CN " + commonName;
+                bodyEl.innerHTML = DEFAULT_EMAIL_BODY;
+                bodyEl.contentEditable = "true";
+                bodyEl.style.backgroundColor = "#ffffff";
+            } else {
+                subjectEl.innerText = catalogTask + " | Confirmation Required for Ownership of CN " + commonName;
+                bodyEl.innerHTML = NOT_MATCHING_BODY;
+                bodyEl.contentEditable = "true";
+                bodyEl.style.backgroundColor = "#ffffff";
+            }
+        }
+
+        function copyEmailTo(btn) {
+            doCopy(document.getElementById('email-to-val').innerText, btn);
+        }
+
+        function copyEmailCc(btn) {
+            doCopy(document.getElementById('email-cc-val').innerText, btn);
         }
 
         function copyEmailSubject(btn) {
@@ -342,7 +428,36 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
         }
 
         function copyEmailBody(btn) {
-            doCopy(document.getElementById('email-body-val').innerText, btn);
+            var el = document.getElementById('email-body-val');
+            var html = el.innerHTML;
+            var plainText = el.innerText;
+            
+            if (navigator.clipboard && window.ClipboardItem) {
+                var item = new ClipboardItem({
+                    'text/html': new Blob([html], { type: 'text/html' }),
+                    'text/plain': new Blob([plainText], { type: 'text/plain' })
+                });
+                navigator.clipboard.write([item]).then(function() {
+                    var oldText = btn.innerText;
+                    btn.innerText = "Copied!";
+                    setTimeout(function() { btn.innerText = oldText; }, 2000);
+                });
+            } else {
+                var selection = window.getSelection();
+                var range = document.createRange();
+                range.selectNodeContents(el);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                try {
+                    document.execCommand("copy");
+                    var oldText = btn.innerText;
+                    btn.innerText = "Copied!";
+                    setTimeout(function() { btn.innerText = oldText; }, 2000);
+                } catch (err) {
+                    alert("Failed to copy.");
+                }
+                selection.removeAllRanges();
+            }
         }
 
         function renderResults() {
@@ -414,6 +529,17 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
 </body>
 </html>`;
 
+const DEFAULT_EMAIL_BODY = `<p>Hi&nbsp;<br>
+Good Day!</p>
+<p>Thank you for raising the request with us. <strong>Please find attached TLS certificates requested in the subjected tickets.</strong></p>
+<p>You may have noticed that your certificate request was fulfilled by our Internal Certificate Authority (CA). Since your domain(s) is located 100% inside the Corebridge enclave, a Corebridge CA internal certificate is appropriate.</p>
+<p><strong><u>Please note:</u></strong><br>
+BEFORE INSTALLING THIS CERTIFICATE, the first thing you should do is to <strong><u>check in your trusted Root and Intermediate stores that the Corebridge Root and Corebridge Issuing CA 1 certs are present</u></strong>. The Intermediate and Root certificates are part of the standard build of all Corebridge workstations, desktops, laptops, and servers. However, third-party systems will probably require "custom" installation of the Corebridge Internal Root and Intermediate.</p>
+<p>Please use our <strong>NEW SERVICENOW CATALOG</strong> going forward, using this link: <a href="https://test.crbg.com">SSL TLS PKI CERTIFICATE REQUEST | ServiceNow</a>. If the link doesn't work, navigate to <a href="https://corebridge.service-now.com/sp">https://corebridge.service-now.com/sp</a>&nbsp;and search for "SSL TLS PKI CERTIFICATE REQUEST" in the service catalog.</p>
+<p>For additional details related to SSL/TLS Certificates, review the PKI Confluence: <a href="https://rest.crbg.com">Corebridge PKI-SSL/TLS Certificates - Confluence</a></p>
+<p>Thank you.<br>
+Regards,</p>`;
+
 export default function App() {
   const [fields, setFields] = useState<FieldDef[]>(DEFAULT_FIELDS);
   const [inputText, setInputText] = useState('');
@@ -431,32 +557,88 @@ export default function App() {
   // Email output state
   const [emailInput, setEmailInput] = useState('');
   const [isTeamDlInvalid, setIsTeamDlInvalid] = useState(false);
+  const [emailTo, setEmailTo] = useState('Need confirmation');
+  const [emailCc, setEmailCc] = useState('Need confirmation');
   const [emailSubject, setEmailSubject] = useState('Need confirmation');
-  const [emailBody, setEmailBody] = useState('Need confirmation');
+  const [customEmailBody, setCustomEmailBody] = useState(DEFAULT_EMAIL_BODY);
+  const [copiedTo, setCopiedTo] = useState(false);
+  const [copiedCc, setCopiedCc] = useState(false);
   const [copiedSubject, setCopiedSubject] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
 
+  const formatEmailList = (emailsStr: string) => {
+    const emails = emailsStr.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    const uniqueEmails = Array.from(new Set(emails));
+    if (uniqueEmails.length === 0) return "";
+    if (uniqueEmails.length === 1) return uniqueEmails[0];
+    if (uniqueEmails.length === 2) return uniqueEmails.join(" and ");
+    const last = uniqueEmails.pop();
+    return uniqueEmails.join(", ") + " and " + last;
+  };
+
+  const getNotMatchingBody = (commonName: string, emailInput: string) => {
+    const formattedEmails = formatEmailList(emailInput);
+    return `<p>Hello&nbsp;<br>Good Day!</p>
+<p>Thank you for raising the request with us. I am from PKI team.</p>
+<p>Upon checking the existing certificate- <strong>${commonName}</strong> for the subjected request, we can see that this certificate belongs to ${formattedEmails}</p>
+<p>The email contacts mentioned in this renewal request is not matching with existing ownership. Please confirm regarding the updated ownership of the mentioned domein so that we can proceed with the renewal request. Additionally, I have added the existing certificate owners to this email for confirmation.</p>
+<p>Thank you.<br>Regards,</p>`;
+  };
+
   useEffect(() => {
     if (isTeamDlInvalid) {
+      setEmailTo("not a valid Team DL");
+      setEmailCc("not a valid Team DL");
       setEmailSubject("not a valid Team DL");
-      setEmailBody("not a valid Team DL");
       return;
     }
 
-    if (!results) return;
-
-    const teamDlField = fields.find(f => f.name === 'Team DL/Group email address');
-    let extractedTeamDl = "";
-    if (teamDlField && results[teamDlField.id] && results[teamDlField.id] !== "Not found") {
-      extractedTeamDl = results[teamDlField.id].toLowerCase();
+    if (!results) {
+      setEmailTo("Need confirmation");
+      setEmailCc("Need confirmation");
+      setEmailSubject("Need confirmation");
+      return;
     }
 
-    const hasTeamDl = extractedTeamDl && emailInput.toLowerCase().includes(extractedTeamDl);
-    const text = hasTeamDl ? "all good" : "Need confirmation";
+    const teamDlField = fields.find(f => f.name === 'Team DL/Group email address');
+    const techContactField = fields.find(f => f.name === 'Technical Contact Email');
+    const catalogTaskField = fields.find(f => f.name === 'Catalog Task');
+    const commonNameField = fields.find(f => f.name === 'Common Name( Fully Qualified Domain Name)');
 
-    setEmailSubject(text);
-    setEmailBody(text);
+    const extractedTeamDl = (teamDlField && results[teamDlField.id] && results[teamDlField.id] !== "Not found") ? results[teamDlField.id] : "";
+    const techContact = (techContactField && results[techContactField.id] && results[techContactField.id] !== "Not found") ? results[techContactField.id] : "";
+    const catalogTask = (catalogTaskField && results[catalogTaskField.id] && results[catalogTaskField.id] !== "Not found") ? results[catalogTaskField.id] : "";
+    const commonName = (commonNameField && results[commonNameField.id] && results[commonNameField.id] !== "Not found") ? results[commonNameField.id] : "";
+
+    const hasTeamDl = extractedTeamDl && emailInput.toLowerCase().includes(extractedTeamDl.toLowerCase());
+
+    setEmailTo(techContact || "Need confirmation");
+    
+    const teamDlEmails = extractedTeamDl.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    const inputEmails = emailInput.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+    
+    let ccEmailsArray = hasTeamDl ? [...teamDlEmails] : [...teamDlEmails, ...inputEmails];
+    ccEmailsArray.push("corebridge_pki@corebridgefinancial.com");
+    
+    const ccEmails = Array.from(new Set(ccEmailsArray));
+    const ccString = ccEmails.join("; ");
+    setEmailCc(ccString ? ccString + ":" : "Need confirmation");
+
+    if (hasTeamDl) {
+      setEmailSubject(`${catalogTask} | Delivery of SSL certificate for CN ${commonName}`);
+      setCustomEmailBody(DEFAULT_EMAIL_BODY);
+    } else {
+      setEmailSubject(`${catalogTask} | Confirmation Required for Ownership of CN ${commonName}`);
+      setCustomEmailBody(getNotMatchingBody(commonName, emailInput));
+    }
   }, [emailInput, results, fields, isTeamDlInvalid]);
+
+  let displayedEmailBody = customEmailBody;
+  if (isTeamDlInvalid) {
+    displayedEmailBody = "not a valid Team DL";
+  } else if (!results) {
+    displayedEmailBody = "Need confirmation";
+  }
 
   const handleAddField = () => {
     if (!newFieldName.trim()) return;
@@ -599,6 +781,20 @@ export default function App() {
     });
   };
 
+  const handleCopyTo = () => {
+    executeCopy(emailTo, () => {
+      setCopiedTo(true);
+      setTimeout(() => setCopiedTo(false), 2000);
+    });
+  };
+
+  const handleCopyCc = () => {
+    executeCopy(emailCc, () => {
+      setCopiedCc(true);
+      setTimeout(() => setCopiedCc(false), 2000);
+    });
+  };
+
   const handleCopySubject = () => {
     executeCopy(emailSubject, () => {
       setCopiedSubject(true);
@@ -606,11 +802,33 @@ export default function App() {
     });
   };
 
-  const handleCopyBody = () => {
-    executeCopy(emailBody, () => {
+  const handleCopyBody = async () => {
+    const el = document.getElementById('email-body-content');
+    if (!el) return;
+    
+    const html = el.innerHTML;
+    const plainText = el.innerText;
+    
+    try {
+      const clipboardItem = new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plainText], { type: 'text/plain' })
+      });
+      await navigator.clipboard.write([clipboardItem]);
       setCopiedBody(true);
       setTimeout(() => setCopiedBody(false), 2000);
-    });
+    } catch (err) {
+      // Fallback
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      document.execCommand('copy');
+      selection?.removeAllRanges();
+      setCopiedBody(true);
+      setTimeout(() => setCopiedBody(false), 2000);
+    }
   };
 
   const handleDownloadOffline = () => {
@@ -850,7 +1068,45 @@ export default function App() {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 group">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">To</span>
+                  <button
+                    onClick={handleCopyTo}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      copiedTo
+                        ? 'text-emerald-600 bg-emerald-50'
+                        : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
+                    }`}
+                  >
+                    {copiedTo ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copiedTo ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <div className="font-mono text-sm text-slate-800 break-all">{emailTo}</div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 group">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cc</span>
+                  <button
+                    onClick={handleCopyCc}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                      copiedCc
+                        ? 'text-emerald-600 bg-emerald-50'
+                        : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 focus:opacity-100'
+                    }`}
+                  >
+                    {copiedCc ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copiedCc ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <div className="font-mono text-sm text-slate-800 break-all">{emailCc}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 group">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subject</span>
@@ -869,9 +1125,9 @@ export default function App() {
                 <div className="font-mono text-sm text-slate-800 break-all">{emailSubject}</div>
               </div>
 
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 group">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 group flex flex-col">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Body</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Body (Editable)</span>
                   <button
                     onClick={handleCopyBody}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
@@ -884,7 +1140,18 @@ export default function App() {
                     {copiedBody ? 'Copied' : 'Copy'}
                   </button>
                 </div>
-                <div className="font-mono text-sm text-slate-800 break-all">{emailBody}</div>
+                <div 
+                  id="email-body-content"
+                  className={`font-sans text-sm text-slate-800 outline-none flex-1 p-3 border border-slate-200 rounded-lg [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-800 [&_a]:cursor-pointer [&_strong]:font-bold [&_b]:font-bold [&_em]:italic [&_i]:italic [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 ${!isTeamDlInvalid ? 'bg-white focus:ring-2 focus:ring-indigo-500' : 'bg-transparent border-transparent px-0'}`}
+                  contentEditable={!isTeamDlInvalid}
+                  suppressContentEditableWarning
+                  dangerouslySetInnerHTML={{ __html: displayedEmailBody }}
+                  onBlur={(e) => {
+                    if (!isTeamDlInvalid) {
+                      setCustomEmailBody(e.currentTarget.innerHTML);
+                    }
+                  }}
+                />
               </div>
             </div>
           </div>
